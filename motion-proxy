@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+
+use Opt;
+use MotionProxy::Server;
+use Log::Lite qw(logrotate logmode logpath log);
+
+# Options:
+#
+# -d (daemonize)
+# -c <configfile>  (required)
+
+
+# simple test
+my $pm = new MotionProxyServer("640x480", '/home/motion/proxy', 8880, 7000);
+  $pm->createCameraServer('cam1', '/snapshot.cgi', '192.168.1.27', 'ipcam_00626E481398');
+  $pm->createCameraServer('cam2', '/snapshot.cgi', '192.168.1.96', 'ipcam_00626E469FF8');
+
+
+  while (1) {
+
+    print "Sleeping...\n";
+    sleep;
+  }
+
+
+print "GORORORO $!  \n";
+
+sub daemonize {
+    chdir("/") || die "can't chdir to /: $!";
+    open(STDIN, "< /dev/null") || die "can't read /dev/null: $!";
+    open(STDOUT, "> /dev/null") || die "can't write to /dev/null: $!";
+    defined(my $pid = fork()) || die "can't fork: $!";
+    exit if $pid; # non-zero now means I am the parent
+    (setsid() != -1) || die "Can't start a new session: $!";
+    open(STDERR, ">&STDOUT") || die "can't dup stdout: $!";
+}
+  
+exit 0;
+
