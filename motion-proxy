@@ -1,39 +1,118 @@
 #!/usr/bin/perl
 
-use Opt;
-use MotionProxy::Server;
-use Log::Lite qw(logrotate logmode logpath log);
-
 # Options:
 #
-# -d (daemonize)
-# -c <configfile>  (required)
+# -d                (daemonize)
+# -c <configfile>   (default: /etc/motion-proxy/motion-proxy.conf)
+# -D                (debug)
 
+use strict;
+use POSIX qw(setsid);
+use Filesys::Df;
+use Log::Lite qw(logrotate logmode logpath log);
+use MotionProxy::Constant;
+use MotionProxy::Config;
 
-# simple test
-my $pm = new MotionProxyServer("640x480", '/home/motion/proxy', 8880, 7000);
-  $pm->createCameraServer('cam1', '/snapshot.cgi', '192.168.1.27', 'ipcam_00626E481398');
-  $pm->createCameraServer('cam2', '/snapshot.cgi', '192.168.1.96', 'ipcam_00626E469FF8');
+my $Config=MotionProxy::Constant::CONFIG;
+my $Fork=0;
+my $Debug=0;
 
+my %Defaults=(
+  'LogPath' => '/tmp/' . MotionProxy::Constant::LOGNAME,
+  'Sleep' => 10,
+  'MaxUsage' => 70
+);
 
+  my $i=-1;
+  while  ( $i < $#ARGV ) {
+    ++$i;
+    if ( $ARGV[$i] eq '-d' ) {
+      $Fork=1;
+      next;
+    } 
+    if ( $ARGV[$i] eq '-c' ) {
+      $Config=$ARGV[$i+1];
+      ++$i;
+      next;
+    }
+    if ($ARGV[$i] eq '-D' ) {
+      $Debug=1;
+      logmode("debug");             #output to STDERR
+      $Fork=0;
+      next;
+    }
+    die("Unrecognized arg: $ARGV[$i]"); 
+}
+
+  unless ( -e $Config && -r $Config ) {
+     die( "Cannot access configuration: ", $Config );
+  }
+
+  my $Configuration=new MotionProxy::Config($Config, \%Defaults);
+
+  logpath($Configuration->get('LogPath'));
+  logrotate("week");            #autocut logfile every year 
+  logrotate("yes");              #enable autocut
+
+  &dolog("Starting with config: ",$Config);
+
+# Get set of directories used
+  my %watchDirs;
+  for my $cam (@MotionProxy::Camera::Instances) {
+      my $dir = $cam->{inpath};
+      $watchDirs{$dir}=$dir;
+  }
+
+  my $MaxUsage = $Configuration->get('MaxUsage');
+  my $Sleep    = $Configuration->get('Sleep');
+
+  # If forking,
+  # wait till after configuration (with possibly relative paths)
+  # and, before starting camera service threads
+
+  if ($Fork) {
+    daemonize();
+  }
+
+# Start camera threads...
+  MotionProxy::Camera::StartAll();
+
+# Hang on and monitor diskspace, etc.
   while (1) {
-
-    print "Sleeping...\n";
-    sleep;
+    for my $dir (keys %watchDirs) {
+        my $ref = df($dir);
+        my $usage=$ref->{used}/$ref->{bavail};
+        if ($usage > $MaxUsage) {
+          &dielog("Maximum disk usage reached:  $usage > $MaxUsage"); 
+        }     
+    }
+    if ($Debug) { print "Sleeping...\n"; }
+    sleep($Sleep);
   }
 
 
-print "GORORORO $!  \n";
-
-sub daemonize {
-    chdir("/") || die "can't chdir to /: $!";
-    open(STDIN, "< /dev/null") || die "can't read /dev/null: $!";
-    open(STDOUT, "> /dev/null") || die "can't write to /dev/null: $!";
-    defined(my $pid = fork()) || die "can't fork: $!";
+  sub daemonize {
+    chdir("/") || die("can't chdir to /: $!");
+    open(STDIN, "< /dev/null") || die("can't read /dev/null: $!");
+    open(STDOUT, "> /dev/null") || die("can't write to /dev/null: $!");
+    defined(my $pid = fork()) || die("can't fork: $!");
     exit if $pid; # non-zero now means I am the parent
-    (setsid() != -1) || die "Can't start a new session: $!";
-    open(STDERR, ">&STDOUT") || die "can't dup stdout: $!";
-}
-  
-exit 0;
+    (setsid() != -1) || die("Can't start a new session: $!");
+    open(STDERR, ">&STDOUT") || die("can't dup stdout: $!");
+  }
+ 
+
+  sub dielog() {
+    log(MotionProxy::Constant::LOGNAME, @_);
+    die(@_);
+  }
+
+  sub dolog() {
+    log(MotionProxy::Constant::LOGNAME, @_);
+  }
+
+  exit 0;
+
+__END__
+
 
