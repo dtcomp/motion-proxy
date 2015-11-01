@@ -15,7 +15,7 @@ use MotionProxy::Config;
 
 my $Config = MotionProxy::Constant::CONFIG;
 my $Fork   = 0;
-my $Debug  = 0;
+$main::Debug  = 0;
 
 my %Defaults = (
     'LogPath'  => '/tmp/' . MotionProxy::Constant::LOGNAME,
@@ -36,7 +36,7 @@ while ( $i < $#ARGV ) {
         next;
     }
     if ( $ARGV[$i] eq '-D' ) {
-        $Debug = 1;
+        $main::Debug = 1;
         logmode("debug");    #output to STDERR
         $Fork = 0;
         next;
@@ -86,7 +86,7 @@ while (1) {
             &dielog("Maximum disk usage reached:  $usage > $MaxUsage");
         }
     }
-    if ($Debug) { print "Sleeping...\n"; }
+    if ($main::Debug) { print "Sleeping...\n"; }
     sleep($Sleep);
 }
 

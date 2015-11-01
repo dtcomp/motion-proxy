@@ -28,6 +28,10 @@ sub done {
   unlink($self->{name});
 }
 
+sub name {
+  my $self=shift;
+  return $self->{name};
+}
 #sub initialize {
 #  my $self=shift;  
 #  my $dir=$self->{queue}->{camera}->{inpath};
@@ -40,6 +44,14 @@ sub p {
   print "name  = ", $self->{name}, " .\n";
   print "time  = ", scalar localtime($self->{time}), " .\n";
   printf "bytes = %d .\n",  $self->{bytes};
+}
+
+sub p1 {
+  my $self=shift;
+#  print scalar localtime($self->{time}), 
+    print $self->{time}, 
+  " = ", $self->{name};
+  printf "( %d )\n",  $self->{bytes};
 }
 1;
 

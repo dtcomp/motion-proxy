@@ -9,7 +9,7 @@ use strict;
 use diagnostics;
 use warnings;
 
-#use Data::Dumper;
+use Data::Dumper;
 use Log::Lite qw(logrotate logmode logpath log);
 use HTTP::Daemon;
 use HTTP::Request::Params;
@@ -48,10 +48,7 @@ sub initialize {
 
     $self->fill();
     $self->{thread} = async { $self->run(); };
-    print "GOT HERTE\n";
     $self->{thread}->yield();
-
-    #  $self->run();
 }
 
 sub p {
@@ -64,13 +61,18 @@ sub p {
     print "total   ", $self->{total},   "\n";
     print "skipped ", $self->{skipped}, "\n";
     print "daemon  ", $self->{daemon},  "\n";
+    my $o;
+    for $o (@$ar) {
+      $o->p1();
+    }
 }
 
 sub sort {
     my $self = shift;
     my $ar   = $self->{data};
     # Sort by ctime
-    @{$ar} = sort { return $a->{time} <=> $b->{time}; } $ar;
+    @$ar = sort { return $a->{time} <=> $b->{time}; } @$ar;
+#        @$ar = sort @$ar;
 }
 
 sub fill {
@@ -81,10 +83,9 @@ sub fill {
     my $maxsize = $self->{camera}->{maxsize};
     my @stat;
 
+    print "Scanning $dir \n";
     while ( defined( $_ = $dh->read() ) ) {
         next unless (/\.jpg$/i);
-
-        #   print "$dir : file= $_ \n";
         my $full_path = File::Spec->catfile( $dir, $_ );
         @stat = ( stat $full_path );
         my $bytes = $stat[7];
@@ -105,35 +106,38 @@ sub fill {
             next;
         }
         my $time = $stat[10];
-        $self->enqueue(
-            new MotionProxy::QueueObject( $self, $full_path, $time, $bytes ) );
+        my $obj = new MotionProxy::QueueObject( $self, $full_path, $time, $bytes );
+        $self->enqueue( $obj );
     }
     $self->sort();
+    if ($main::Debug) {$self->p();}
 }
 
 sub enqueue {
     my $self = shift;
     my $obj  = shift;
     my $ar   = $self->{data};
-    push $ar, $obj;
+    push @{$self->{data}}, $obj;
+#    push $ar, $obj;
 }
 
 sub dequeue {
     my $self = shift;
     my $ar   = $self->{data};
-    return pop $ar;
+    return pop @{$self->{data}};
+#    return pop $ar;
 }
 
 sub next {
     my $self = shift;
     my $ar   = $self->{data};
-    my $n    = scalar @$ar;
+    my $n    = scalar @{$ar};
 
     if ( $n < 1 ) {
         $self->{last} = undef;
         $self->fill();
     }
-    my $obj = shift $ar;
+    my $obj = shift @{$ar};
     $self->{last} = $obj;
     return $self->{last};
 }
@@ -146,7 +150,6 @@ sub run {
     my $sport = $self->{camera}->{port};
 
     $daemon = HTTP::Daemon->new(
-
         #	  LocalAddr => 'localhost',
         LocalPort => $self->{camera}->{port},
         ReuseAddr => 1
@@ -162,15 +165,18 @@ sub run {
 
     while ( $conn = $daemon->accept() ) {
 
-        # print "Connect from host: ", $conn->peerhost(), "$sport .\n";
+        print "Connect from host: ", $conn->peerhost(), ":$sport .\n";
+        
         while ( my $request = $conn->get_request ) {
             #	  my $rhost = $request->uri->host;
             #	  my $rport = $request->uri->port;
             my $rpath = $request->uri->path;
             if ( $request->method eq 'GET' and $rpath eq $path ) {
                 my $obj = $self->next();
+                print "Obj:  " , Dumper($obj), "\n";
                 if ( defined($obj) ) {
-                    my $file = $obj->{name};
+                    print "ref obj = " . ref $obj . "\n";
+                    my $file = $obj->name();
                     if ($file) {
                         # print "Sending: ", $file, "  \n";
                         $conn->send_file_response($file);
@@ -204,7 +210,7 @@ sub run {
         #       undef($conn);
         #     }
     }
-    print __FILE__:__LINE__, "UHOH, something bad happened...\n";
+    print __FILE__ . ":" . __LINE__, "UHOH, something bad happened...\n";
 }
 
 sub stop {

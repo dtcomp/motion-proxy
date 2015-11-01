@@ -34,7 +34,8 @@ our %Configurables = (
     'last_img'       => MotionProxy::Constant::LASTFILENAME,
     'aliases'        => undef,
     'minsize_events' => 0,
-    'maxsize_events' => 0
+    'maxsize_events' => 0,
+    'active'         => 1
 );
 
 our @Derivatives = ( 'objpath', 'inpath', 'tmppath', 'queue', 'aliases' );
@@ -43,7 +44,9 @@ our @Instances;
 
 sub StartAll {
     for my $cam ( our @Instances ) {
+      if ( $cam->{active} ) {
         $cam->start();
+      }
     }
 }
 
