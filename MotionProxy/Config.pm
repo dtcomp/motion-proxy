@@ -69,16 +69,10 @@ sub initialize {
 
     my @keys = keys %data;
     for my $key (@keys) {
-
-        #       print "key = $key, val =" . $data{$key} . "\n";
+        print "key = $key, val =" . $data{$key} . "\n";
         if ( $key eq 'Camera' ) {
-            my @cameras = @{ $data{$key} };
-            my $len     = scalar @cameras;
-            foreach my $cam (@cameras) {
-                my $newcam = new MotionProxy::Camera($cam);
-
+                my $newcam = new MotionProxy::Camera($data{$key});
                 #                  print "newcam: ", Dumper($newcam), "\n";
-            }
         }
         else {    # Assume top-level value
             $self->{value}->{$key} = $data{$key};

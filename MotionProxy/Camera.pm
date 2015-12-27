@@ -138,6 +138,7 @@ sub aliasCheck {
         }
         else {
             $MotionProxy::Camera::Aliases{$a} = $self->{name};
+	    print "Adding alias $self->{name} => $a \n";
         }
     }
 }
@@ -225,8 +226,7 @@ sub mkdirs {
         # see if base is dir or symlink to ... tmpfs perhaps?
 
         if ( !S_ISDIR( $s1->mode ) and !S_ISLNK( $s1->mode ) ) {
-            die(
-"$self->{base} exists and is not a directory or symbolic link, modes=",
+            die( "$self->{base} exists and is not a directory or symbolic link, modes=",
                 $s1->mode + ' ',
                 "  . \n"
             );

@@ -56,11 +56,11 @@ sub p {
 
     print "camera  ", $self->{camera}, "\n";
     my $ar = $self->{data};
-    print "data    ", @$ar[0], "\n";
-    print "last    ", $self->{last},    "\n";
+    print "data    ", @$ar, "\n";
     print "total   ", $self->{total},   "\n";
     print "skipped ", $self->{skipped}, "\n";
-    print "daemon  ", $self->{daemon},  "\n";
+#    print "last    ", $self->{last},    "\n";
+#    print "daemon  ", $self->{daemon},  "\n";
     my $o;
     for $o (@$ar) {
       $o->p1();
@@ -189,7 +189,7 @@ sub run {
                 }
                 else {    # out of files to send...
                     print "out of files...\n";
-                    #		  $conn->send_error(RC_NOT_FOUND);
+                    $conn->send_error(RC_NOT_FOUND);
                 }
 #                print "got here 1\n";
             }
