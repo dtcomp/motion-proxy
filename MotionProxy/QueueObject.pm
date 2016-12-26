@@ -1,8 +1,9 @@
 package MotionProxy::QueueObject;
 use strict;
 use Log::Lite qw(logrotate logmode logpath log);
-#use diagnostics;
-#use warnings;
+use diagnostics;
+use warnings;
+
 
 sub new {
   my $class=shift;
@@ -18,13 +19,11 @@ sub new {
     bytes  => $bytes,
   }, $class;
 
-#  $self->initialize();
   return $self;
 }
 
 sub done {
   my $self=shift;
-  
   unlink($self->{name});
 }
 
@@ -32,11 +31,6 @@ sub name {
   my $self=shift;
   return $self->{name};
 }
-#sub initialize {
-#  my $self=shift;  
-#  my $dir=$self->{queue}->{camera}->{inpath};
-#  $self->p();
-#}
 
 sub p {
   my $self=shift;
@@ -48,11 +42,11 @@ sub p {
 
 sub p1 {
   my $self=shift;
-#  print scalar localtime($self->{time}), 
-    print $self->{time}, 
+  print $self->{time}, 
   " = ", $self->{name};
   printf "( %d )\n",  $self->{bytes};
 }
+
 1;
 
 

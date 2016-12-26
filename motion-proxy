@@ -7,6 +7,8 @@
 # -D                (debug)
 
 use strict;
+use diagnostics;
+use warnings;
 use POSIX qw(setsid);
 use Filesys::Df;
 use Log::Lite qw(logrotate logmode logpath log);
@@ -15,7 +17,7 @@ use MotionProxy::Config;
 
 my $Config = MotionProxy::Constant::CONFIG;
 my $Fork   = 0;
-$main::Debug  = 0;
+$main::Debug = 0;
 
 my %Defaults = (
     'LogPath'  => '/tmp/' . MotionProxy::Constant::LOGNAME,
@@ -48,10 +50,10 @@ unless ( -e $Config && -r $Config ) {
     die( "Cannot access configuration: ", $Config );
 }
 
-my $Configuration = new MotionProxy::Config( $Config, \%Defaults );
+$main::Configuration = new MotionProxy::Config( $Config, \%Defaults );
 
-logpath( $Configuration->get('LogPath') );
-logrotate("week");    #autocut logfile every year
+logpath( $main::Configuration->get('LogPath') );
+logrotate("week");    #autocut logfile every week
 logrotate("yes");     #enable autocut
 
 &dolog( "Starting with config: ", $Config );
@@ -63,8 +65,8 @@ for my $cam (@MotionProxy::Camera::Instances) {
     $watchDirs{$dir} = $dir;
 }
 
-my $MaxUsage = $Configuration->get('MaxUsage');
-my $Sleep    = $Configuration->get('Sleep');
+my $MaxUsage = $main::Configuration->get('MaxUsage');
+my $Sleep    = $main::Configuration->get('Sleep');
 
 # If forking,
 # wait till after configuration (with possibly relative paths)
@@ -74,8 +76,8 @@ if ($Fork) {
     daemonize();
 }
 
-# Start camera threads...
-MotionProxy::Camera::StartAll();
+# Start camera queues...
+MotionProxy::Queue::StartAll();
 
 # Hang on and monitor diskspace, etc.
 while (1) {
@@ -91,13 +93,22 @@ while (1) {
 }
 
 sub daemonize {
+    my $pid;
+    defined( $pid = fork() ) || die("can't fork: $!");
+    exit if $pid;    # non-zero now means I am the parent
+    ( setsid() != -1 ) || die("Can't start a new session: $!");
+    defined( $pid = fork() ) || die("can't fork: $!");
+    exit if $pid;
+    system( "echo $$ >  $main::Configuration->get('PIDFile')" );
     chdir("/") || die("can't chdir to /: $!");
     open( STDIN,  "< /dev/null" ) || die("can't read /dev/null: $!");
     open( STDOUT, "> /dev/null" ) || die("can't write to /dev/null: $!");
-    defined( my $pid = fork() ) || die("can't fork: $!");
-    exit if $pid;    # non-zero now means I am the parent
-    ( setsid() != -1 ) || die("Can't start a new session: $!");
-    open( STDERR, ">&STDOUT" ) || die("can't dup stdout: $!");
+    open( STDERR, "> /dev/null" ) || die("can't dup stdout: $!");
+    umask 0;
+}
+
+sub dolog() {
+    log( MotionProxy::Constant::LOGNAME, @_ );
 }
 
 sub dielog() {
@@ -105,12 +116,6 @@ sub dielog() {
     die(@_);
 }
 
-sub dolog() {
-    log( MotionProxy::Constant::LOGNAME, @_ );
-}
-
 exit 0;
 
 __END__
-
-

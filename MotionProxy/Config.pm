@@ -1,5 +1,7 @@
 package MotionProxy::Config;
 use MotionProxy::Camera;
+use MotionProxy::Queue;
+
 use strict;
 use Switch;
 use diagnostics;
@@ -34,8 +36,7 @@ sub setDefaults {
 
     #  print "href: ", Dumper($href), "\n";
     for my $k ( keys %{$href} ) {
-
-        #    print "Setting default for $k => $href->{$k} \n";
+        print "Setting default for $k => $href->{$k} \n";
         $self->{value}->{$k} = $href->{$k};
     }
 }
@@ -65,18 +66,31 @@ sub initialize {
 
     my %data = $self->{conf}->getall();
 
-    #    print "data: ", Dumper(%data), "\n";
+    print "data: ", Dumper(%data), "\n";
 
     my @keys = keys %data;
     for my $key (@keys) {
         print "key = $key, val =" . $data{$key} . "\n";
         if ( $key eq 'Camera' ) {
-                my $newcam = new MotionProxy::Camera($data{$key});
-                #                  print "newcam: ", Dumper($newcam), "\n";
+            my $cam;
+            foreach $cam ( keys $data{$key} ) {
+                my $new_cam = new MotionProxy::Camera($cam,$data{$key}->{$cam});
+                #print "new_cam . "\n";
+            }
+            #print "cam: ", Dumper($new_cam), "\n";
+            next;
         }
-        else {    # Assume top-level value
-            $self->{value}->{$key} = $data{$key};
+        if ( $key eq 'Queue' ) {
+            my $queue;
+            foreach $queue ( keys $data{$key} ) {
+                my $new_queue = new MotionProxy::Queue($queue,$data{$key}->{$queue});
+                print "new_queue: " , Dumper($new_queue), "\n";
+            }
+            print "queue: ", Dumper($data{$key}), "\n";
+            next;
         }
+        # else, top-level value
+        $self->{value}->{$key} = $data{$key};
     }
     $self->{data} = \%data;
     return $self;

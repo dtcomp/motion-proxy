@@ -1,9 +1,9 @@
 package MotionProxy::Camera;
 
-# This represent the http: camera's data source
-#use strict;
-#use diagnostics;
-#use warnings;
+# This represents the http: camera's data source
+use strict;
+use diagnostics;
+use warnings;
 
 use strict;
 use warnings;
@@ -16,146 +16,146 @@ use File::Basename;
 use File::stat;
 use Fcntl ':mode';
 use Log::Lite qw(logrotate logmode logpath log);
-
-use MotionProxy::Queue;
 use MotionProxy::Constant;
 
-#BEGIN {
-#    our %Configurables=(
 
 our %Configurables = (
-    'name'           => 'template',
+    'name'           => undef,
+    'base'           => undef,
     'path'           => MotionProxy::Constant::CAMPATH,
-    'port'           => 8080,
-    'base'           => '/tmp',
     'minsize'        => 7001,
     'maxsize'        => 200001,
     'default_img'    => 'default.jpg',
     'last_img'       => MotionProxy::Constant::LASTFILENAME,
-    'aliases'        => undef,
-    'minsize_events' => 0,
-    'maxsize_events' => 0,
+    'aliases'        => {},
     'active'         => 1
 );
 
-our @Derivatives = ( 'objpath', 'inpath', 'tmppath', 'queue', 'aliases' );
+our %Derivatives = ( 'objpath' => undef, 'inpath' => undef, 'tmppath' => undef);
 our %Aliases;
-our @Instances;
+our %Instances;
 
-sub StartAll {
-    for my $cam ( our @Instances ) {
-      if ( $cam->{active} ) {
-        $cam->start();
-      }
-    }
+#sub StartAll {
+#    for my $cam ( values %Instances ) {
+#      if ( $cam->{active} ) {
+#        $cam->{queue} = $queue;
+#        $cam->start();
+#      }
+#    }
+#    $queue->start();
+#}
+
+sub ResolveAlias {
+  my $name = shift;
+  
+  return $Aliases{$name}->{name};
+}
+
+sub ResolveAliasRef {
+  my $name = shift;
+  
+  return $Aliases{$name};
 }
 
 sub new {
     my $class   = shift;
+    my $name    = shift;
     my $options = shift;
-
-    my %self = %MotionProxy::Camera::Configurables;    # start with defaults
+    my %self;
     my $self = \%self;
+    
+    # Copy defaults from template
+    foreach my $k ( keys %MotionProxy::Camera::Configurables ) {
+        my $c = $MotionProxy::Camera::Configurables{$k};
+        my $x = ref $c;
+        unless ($x) { $x = 'None'; }
+        switch ($x) {
+          case 'ARRAY' {
+            my @a;
+            foreach my $e ( $c ) {
+              push @a, $e;
+            }
+            $self->{$k} = \@a;
+          }
+          case 'None' {
+            $self->{$k} = $MotionProxy::Camera::Configurables{$k};
+          }
+          case 'HASH' {
+            my %h;
+            foreach my $e ( keys $c ) {
+              $h{$e} = $c->{$e};
+            }
+            $self->{$k} = \%h;
+          }
+        }
+    }
+ 
+    $self->{name} = $name;
+    $self->{aliases}->{$name} = $name;
     my $x    = ref $options;
+    my $x2;
+
+    print "Options: ", Dumper($options), "\n";
 
     unless ( "$x" eq "HASH" ) {
-        die( "Options isa ", $x, "\n" );
+        die( "Options isa ", $x, ", expected HASH\n" );
     }
 
-    my $k;
-
-    #  print "Options: ", Dumper($options), "\n";
-    foreach $k ( keys $options ) {
-
-        #    print "Optionkey: ", $k, "\n";
-        if ( exists $MotionProxy::Camera::Configurables{$k} ) {
-            $x = ref $options->{$k};
-            unless ($x) {
-                $x = 'None';
+    foreach my $k ( keys $options ) {
+      print "Optionkey: ", $k, "\n";
+      if ( exists $MotionProxy::Camera::Configurables{$k} ||
+           exists $MotionProxy::Camera::Derivatives{$k} ) {
+        $x = ref $options->{$k};
+        $x2 = ref $self->{$k};
+        unless ($x2) { $x2 = 'None'; }
+        unless ($x) { $x = 'None'; }
+        print "ref1 $k = ", $x, "\n";
+        print "ref2 Conf $k = ", $x2 , "\n";
+        switch ($x2) {
+          case 'ARRAY' {
+            if ( "$x" eq 'None' ) {
+              push $self->{$k}, $options->{$k};
             }
-
-            #      print "ref $k = ", $x, "\n";
-            switch ($x) {
-                case 'ARRAY' {
-                    my @tmp;
-                    $self->{$k} = \@tmp;
-                    @tmp = @{ $options->{$k} };
-                }
-                case 'None' {
-                    $self->{$k} = $options->{$k};
-
-                    #          print "$self->{$k} = $options->{$k}", "\n";
-                }
-                case 'HASH' {
-                    die("HASH unexpected...");
-                }
+          }
+          case 'None' {
+            $self->{$k} = $options->{$k};
+            print "$self->{$k} = $options->{$k}", " None\n";
+          }
+          case 'HASH' {
+            if ( "$x" eq 'None' ) {
+              $self->{$k}{$options->{$k}} = $name;
             }
+          }
         }
-        else {
-            if ( exists $MotionProxy::Camera::Derivatives{$k} ) {
-                $x = ref $options->{$k};
-                unless ($x) {
-                    $x = 'None';
-                }
-
-                #      print "ref $k = ", $x, "\n";
-                switch ($x) {
-                    case 'ARRAY' {
-                        my @tmp;
-                        $self->{$k} = \@tmp;
-                        @tmp = @{ $options->{$k} };
-                    }
-                    case 'None' {
-                        $self->{$k} = $options->{$k};
-
-                        #          print "$self->{$k} = $options->{$k}", "\n";
-                    }
-                    case 'HASH' {
-                        die("HASH unexpected...");
-                    }
-                }
-            }
-            else {
-                die("Bad options key: $k");
-            }
-        }
-
-        #  print "CAM: ", Dumper($self), "\n";
-    }
-
-    MotionProxy::Camera::aliasCheck($self);
-
-    bless $self, $class;
-    return $self->initialize();
+      } else {
+        die("Bad options key: $k");
+      }
+    print "CAM: ", Dumper($self), "\n";
+  }
+  bless $self, $class;
+  return $self->initialize();
 }
 
 sub aliasCheck {
-    my $self = shift;
-    for my $a ( @{ $self->{aliases} } ) {
-        if ( exists $MotionProxy::Camera::Aliases{$a} ) {
-            die( "Duplicate Alias: $self->{name}, $a , previously defined in: ",
-                $MotionProxy::Camera::Aliases{$a} );
-        }
-        else {
-            $MotionProxy::Camera::Aliases{$a} = $self->{name};
-	    print "Adding alias $self->{name} => $a \n";
-        }
+  print "ALIAS: ", Dumper(%MotionProxy::Camera::Aliases), "\n";
+  my $self = shift;
+  for my $a ( keys $self->{aliases} ) {
+    if ( exists $MotionProxy::Camera::Aliases{$a} ) {
+        die( "Duplicate Alias: $self->{name}, $a , previously defined in: ",
+             $MotionProxy::Camera::Aliases{$a}->{name} );
     }
+    else {
+        $MotionProxy::Camera::Aliases{$a} = $self;
+	    print "Adding alias $a => $self->{name} \n";
+    }
+  }
 }
 
-sub minsizeEvent {
-    my $self = shift;
-    $self->{minsize_events}++;
-}
 
-sub maxsizeEvent {
-    my $self = shift;
-    $self->{maxsize_events}++;
-}
 
 sub initialize {
     my $self = shift;
-
+    MotionProxy::Camera::aliasCheck($self);
     $self->mkdirs();
     if ( defined $self->{default_img} ) {
         if ( -e $self->{default_img} ) {
@@ -177,25 +177,18 @@ sub initialize {
         }
     }
     no strict 'subs';
-    push @Instances, $self;
-
+    $Instances{$self->{name}} = $self;
+    print "CONFIGURABLES: ", Dumper(%Configurables), "\n";
     return $self;
 }
 
 sub start {
     my $self = shift;
-    $self->{queue} = new MotionProxy::Queue($self);
 }
 
 sub stop {
     my $self = shift;
-    $self->{queue}->stop();
-}
-
-sub next {
-    my $self = shift;
-
-    return $self->{queue}->next();
+ #   $self->{queue}->stop();
 }
 
 sub p {
@@ -210,13 +203,13 @@ sub p {
     print "ogjp: $self->{objpath}\n";
     print "inpp: $self->{inpath}\n";
     print "tmpp: $self->{tmppath}\n";
-    print "queu: $self->{queue}\n";
 }
 
 sub mkdirs {
     my $self = shift;
     my ( $link, $s1, $s2 );
 
+    if ( defined $self->{base} ) {
     $s1 = ( stat( $self->{base} ) );
     if ($s1) {    # base already exists
         unless ( $s1->cando( S_IWUSR, 1 ) ) {
@@ -241,16 +234,22 @@ sub mkdirs {
         make_path( $self->{base} )
           || die("Cannot make base directory $self->{base}.\n");
     }
-    $self->{objpath} = File::Spec->catfile( $self->{base}, $self->{name} );
-    if ( !-e $self->{objpath} ) {
-        make_path( $self->{objpath} )
-          || print("Cannot make $self->{objpath}.\n");
+      $self->{objpath} = File::Spec->catfile( $self->{base}, $self->{name} );
+          if ( ! -e $self->{objpath} ) {
+        make_path( $self->{objpath} ) || print("Cannot make $self->{objpath}.\n");
     }
-    $self->{inpath} = File::Spec->catfile( $self->{objpath}, "in" );
+    if ( ! defined($self->{inpath} ) ) {
+      $self->{inpath} = File::Spec->catfile( $self->{objpath}, "in" );
+    }
+    if ( ! defined( $self->{tmppath} )) {
+      $self->{tmppath} = File::Spec->catfile( $self->{objpath}, "tmp" );
+    }
+  }
+
     if ( !-e $self->{inpath} ) {
         make_path( $self->{inpath} ) || die("Cannot make $self->{inpath}. \n");
     }
-    $self->{tmppath} = File::Spec->catfile( $self->{objpath}, "tmp" );
+ 
     if ( !-e $self->{tmppath} ) {
         make_path( $self->{tmppath} )
           || die("Cannot make $self->{tmppath}. \n");
