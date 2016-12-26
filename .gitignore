@@ -1,3 +1,5 @@
+*.jpg
+motion-proxy.conf
 /log/
 /blib/
 /.build/
