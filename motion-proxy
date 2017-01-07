@@ -17,7 +17,6 @@ use MotionProxy::Config;
 
 my $Config = MotionProxy::Constant::CONFIG;
 my $Fork   = 0;
-$main::Debug = 0;
 
 my %Defaults = (
     'LogPath'  => '/tmp/' . MotionProxy::Constant::LOGNAME,
@@ -72,6 +71,8 @@ my $Sleep    = $main::Configuration->get('Sleep');
 # wait till after configuration (with possibly relative paths)
 # and, before starting camera service threads
 
+my $PIDFile = $main::Configuration->get('PIDFile');
+
 if ($Fork) {
     daemonize();
 }
@@ -99,12 +100,13 @@ sub daemonize {
     ( setsid() != -1 ) || die("Can't start a new session: $!");
     defined( $pid = fork() ) || die("can't fork: $!");
     exit if $pid;
-    system( "echo $$ >  $main::Configuration->get('PIDFile')" );
     chdir("/") || die("can't chdir to /: $!");
     open( STDIN,  "< /dev/null" ) || die("can't read /dev/null: $!");
     open( STDOUT, "> /dev/null" ) || die("can't write to /dev/null: $!");
     open( STDERR, "> /dev/null" ) || die("can't dup stdout: $!");
     umask 0;
+    system( "echo $$ >  $PIDFile" );
+    dolog("PID File: $PIDFile");
 }
 
 sub dolog() {
