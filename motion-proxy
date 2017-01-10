@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
 
 # Options:
 #
@@ -14,6 +14,13 @@ use Filesys::Df;
 use Log::Lite qw(logrotate logmode logpath log);
 use MotionProxy::Constant;
 use MotionProxy::Config;
+
+use threads (
+  'yield',
+  'stack_size' => 128 * 4096,
+  'exit'       => 'threads_only',
+  'stringify'
+);
 
 my $Config = MotionProxy::Constant::CONFIG;
 my $Fork   = 0;
@@ -77,21 +84,60 @@ if ($Fork) {
     daemonize();
 }
 
-# Start camera queues...
-MotionProxy::Queue::StartAll();
+
+sub StartAll {
+  for my $q ( values %MotionProxy::Queue::Instances ) {
+    print "Starting $q->{name} \n";
+    $q->{thread} = async { $q->start(); };
+  }
+
+  for my $q ( values %MotionProxy::Queue::Instances ) {
+    $q->{thread}->join();
+    print "$q->{name} joined! .\n";
+  }
+
+#  while (1) {
+#    if ( $self->{thread} ) {
+#      if ( $self->{thread}->is_running() ) {
+#        sleep(2);
+#      }
+#      else {
+#        print "Thread exited, restarting ...\n";
+#        $self->{conn}->force_last_request();
+#        $self->{conn}->close();
+#
+#        undef $self->{conn};
+#        undef $self->{daemon};
+#        $self->start_thread();
+#      }
+#    }
+#    else {
+#      $self->start_thread();
+#    }
+#  }
+
+}
+
 
 # Hang on and monitor diskspace, etc.
-while (1) {
-    for my $dir ( keys %watchDirs ) {
-        my $ref   = df($dir);
-        my $usage = $ref->{used} / $ref->{bavail};
-        if ( $usage > $MaxUsage ) {
-            &dielog("Maximum disk usage reached:  $usage > $MaxUsage");
-        }
-    }
-    if ($main::Debug) { print "Sleeping...\n"; }
-    sleep($Sleep);
+sub main_loop {
+  # Start camera queues...
+#  MotionProxy::Queue::StartAll();
+   StartAll();
+#  threads->yield();
+#  while (1) {
+#    for my $dir ( keys %watchDirs ) {
+#        my $ref   = df($dir);
+#        my $usage = $ref->{used} / $ref->{bavail};
+#        if ( $usage > $MaxUsage ) {
+#            &dielog("Maximum disk usage reached:  $usage > $MaxUsage");
+#        }
+#    }
+#    if ($main::Debug) { print "Sleeping...\n"; }
+#    threads->yield();
+#  }
 }
+
 
 sub daemonize {
     my $pid;
@@ -109,15 +155,28 @@ sub daemonize {
     dolog("PID File: $PIDFile");
 }
 
-sub dolog() {
+sub dolog {
     log( MotionProxy::Constant::LOGNAME, @_ );
 }
 
-sub dielog() {
-    log( MotionProxy::Constant::LOGNAME, @_ );
+sub dielog {
+#    log( MotionProxy::Constant::LOGNAME, @_ );
     die(@_);
 }
 
-exit 0;
+
+sub DIE_handler {
+    my($signal) = @_;
+    dolog(@_);
+}
+
+
+
+my $T = async { main_loop(); };
+
+$T->join();
+
+
+exit;
 
 __END__
