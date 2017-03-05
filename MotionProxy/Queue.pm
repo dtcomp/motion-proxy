@@ -96,6 +96,7 @@ sub initialize {
 
 sub start {
   my $self = shift;
+  threads->set_thread_exit_only(1);
 
   for my $c ( keys $self->{cameras} ) {
     my $r = MotionProxy::Camera::ResolveAlias($c);

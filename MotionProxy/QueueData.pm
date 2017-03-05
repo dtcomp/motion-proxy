@@ -34,6 +34,11 @@ sub new {
   return $self;
 }
 
+sub count {
+  my $self=shift;
+  return scalar(@$self->{data});
+}
+
 sub sortc {
   my $self = shift;
   my $ar   = $self->{data};
@@ -175,7 +180,7 @@ sub next {
 
   if ( $n < 1 ) {
     $self->{last} = undef;
-    $self->fill();
+    return undef;
   }
   my $obj = shift @{$ar};
   $self->{last} = $obj;
